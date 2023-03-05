@@ -1,0 +1,110 @@
+version: "3.8"
+
+services:
+  db:
+    image: mysql:5.7
+    environment:
+      MYSQL_DATABASE: url_shorten
+      MYSQL_ROOT_PASSWORD_FILE: /run/secrets/mysql_root_password
+      MYSQL_USER_FILE: /run/secrets/mysql_username
+      MYSQL_PASSWORD_FILE: /run/secrets/mysql_password
+      TZ: Asia/Shanghai
+    ports:
+      - "3306:3306"
+    volumes:
+      - type: volume
+        source: db-data
+        target: /var/lib/mysql
+      - type: bind
+        source: ./Schema
+        target: /docker-entrypoint-initdb.d
+        read_only: true
+      # - type: bind
+      #   source: /etc/timezone
+      #   target: /etc/timezone
+      #   read_only: true
+    networks:
+      - urlNet
+    secrets:
+      - mysql_username
+      - mysql_password
+      - mysql_root_password
+    deploy:
+      resources:
+        limits:
+          memory: 1024M
+    ulimits: #added for mySQL
+      nofile:
+        soft: 20000
+        hard: 40000
+
+  frontend:
+    image: 751231970319.dkr.ecr.ap-southeast-1.amazonaws.com/urlshorten/frontend:latest
+    ports:
+      - "80:80"
+    environment:
+      TZ: Asia/Shanghai
+      SERVER_PORT: 80
+    # volumes:
+    #   - type: bind
+    #     source: /etc/timezone
+    #     target: /etc/timezone
+    #     read_only: true
+    networks:
+      - urlNet    
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+ 
+  backend:
+    image: 751231970319.dkr.ecr.ap-southeast-1.amazonaws.com/urlshorten/urlshorten-service:latest
+    build:
+      context: .
+      args:
+        SERVER_PORT: 8990
+        APP_BIN: urlShorten-0.0.1-SNAPSHOT.jar
+    ports:
+      - "8990:8990"
+    environment:
+      TZ: Asia/Shanghai
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_SERVICE: db:3306
+      SERVER_PORT: 8990
+      spring_profiles_active: default
+    # volumes:
+    #   - type: bind
+    #     source: /etc/timezone
+    #     target: /etc/timezone
+    #     read_only: true
+    networks:
+      - urlNet    
+    secrets:
+      - mysql_username
+      - mysql_password
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+
+
+volumes:
+  db-data:
+
+networks:
+  urlNet:
+    name: urlshorten-network
+    external: true
+
+secrets:
+  mysql_username:
+    external: true
+    # file: ./mysql_username.txt
+  mysql_password:
+    external: true
+    # file: ./mysql_password.txt
+  mysql_root_password:
+    external: true
+    # file: ./mysql_root_password.txt
